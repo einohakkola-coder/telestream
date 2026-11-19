@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Telestream control</title>
+<style>
+:root{
+  --bg:#0e1726; --panel:#16223a; --line:#2a3a5c; --text:#e9eef8; --dim:#93a3c4;
+  --live:#ff3d4f; --ok:#3ddc97; --accent:#ffd166;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef2f9; --panel:#fff; --line:#cfd8e8; --text:#101a2e; --dim:#566581; --accent:#b7791f; color-scheme:light; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));}
+main{max-width:560px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:1.25rem;margin:0;font-weight:650;letter-spacing:-.01em}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+label{display:grid;gap:4px;font-size:.88rem;color:var(--dim)}
+input,select{width:100%;font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select option{background:var(--panel)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check{display:flex;align-items:center;gap:8px;color:var(--text);font-size:.95rem}
+.check input{width:auto}
+button{font:inherit;font-weight:600;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);padding:12px;cursor:pointer}
+button.go{background:var(--live);border-color:var(--live);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+.tally{display:flex;align-items:center;gap:14px}
+.lamp{width:18px;height:18px;border-radius:50%;background:var(--line);flex:none}
+.lamp.live{background:var(--live);box-shadow:0 0 0 6px color-mix(in srgb,var(--live) 25%,transparent);animation:pulse 1.6s ease-in-out infinite}
+.lamp.wait{background:var(--accent)}
+@keyframes pulse{50%{box-shadow:0 0 0 10px color-mix(in srgb,var(--live) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){.lamp.live{animation:none}}
+.state{font-size:1.3rem;font-weight:700}
+.meta{color:var(--dim);font-size:.88rem;font-variant-numeric:tabular-nums}
+pre{margin:0;max-height:220px;overflow:auto;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--dim);white-space:pre-wrap;word-break:break-all}
+.err{color:var(--live);font-size:.9rem;min-height:1.2em}
+details{color:var(--dim);font-size:.9rem}
+summary{cursor:pointer;color:var(--text)}
+ol{padding-left:20px;margin:8px 0 0}
+.hidden{display:none !important}
+#app{display:grid;gap:16px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Telestream control</h1>
+
+  <section id="gate">
+    <label>Panel password
+      <input id="pw" type="password" autocomplete="current-password">
+    </label>
+    <button class="go" id="enter">Unlock</button>
+    <div class="err" id="gateErr"></div>
+  </section>
+
+  <div id="app" class="hidden">
+    <section>
+      <div class="tally">
+        <div class="lamp" id="lamp"></div>
+        <div>
+          <div class="state" id="state">Offline</div>
+          <div class="meta" id="meta">Not streaming</div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="go" id="start">Go live</button>
+        <button id="stop" disabled>Stop</button>
+      </div>
+      <button id="restart" disabled>Restart with current settings</button>
+      <div class="err" id="err"></div>
+    </section>
+
+    <section>
+      <label>Server URL
+        <input id="server" placeholder="rtmps://dc4-1.rtmp.t.me/s/" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <label>Stream key
+        <input id="key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="checkbox" id="remember"> Remember these on this device</label>
+      <details>
+        <summary>Where do I find these?</summary>
+        <ol>
+          <li>Open your Telegram channel or group and start a video chat.</li>
+          <li>Tap the ⋯ menu, then <b>Start live stream with…</b></li>
+          <li>Copy the <b>Server URL</b> and <b>Stream key</b> shown there.</li>
+        </ol>
+      </details>
+    </section>
+
+    <section>
+      <label>Source
+        <select id="sourceType">
+          <option value="test">Test pattern (check it works)</option>
+          <option value="url">Video or stream URL</option>
+        </select>
+      </label>
+      <label id="urlWrap" class="hidden">URL (mp4, HLS .m3u8 or rtmp)
+        <input id="url" placeholder="https://example.com/video.mp4" autocapitalize="off" spellcheck="false">
+      </label>
+      <div class="row">
+        <label>Quality
+          <select id="quality">
+            <option value="480p">480p</option>
+            <option value="720p" selected>720p</option>
+            <option value="1080p">1080p</option>
+          </select>
+        </label>
+        <label>Video bitrate (kbps)
+          <input id="bitrate" type="number" inputmode="numeric" placeholder="auto">
+        </label>
+      </div>
+      <label class="check"><input type="checkbox" id="loop" checked> Loop the source</label>
+      <label class="check"><input type="checkbox" id="mute"> Mute audio</label>
+      <label class="check"><input type="checkbox" id="auto" checked> Auto-restart if the stream drops</label>
+    </section>
+
+    <section>
+      <div class="meta">Relay log</div>
+      <pre id="log">Nothing yet.</pre>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let pw = sessionStorage.getItem("pw") || "";
+let timer = null;
+
+async function api(action, body){
+  const r = await fetch("/api/relay?action=" + action, {
+    method: action === "status" ? "GET" : "POST",
+    headers: { "content-type": "application/json", "x-app-password": pw },
+    body: action === "status" ? undefined : JSON.stringify(body || {})
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || "Request failed"), { status: r.status });
+  return data;
+}
+
+function fmt(s){
+  s = Math.floor(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return [h, m, x].map(n => String(n).padStart(2, "0")).join(":");
+}
+
+function render(st){
+  const live = st.state === "live", wait = st.state === "starting";
+  $("lamp").className = "lamp" + (live ? " live" : wait ? " wait" : "");
+  $("state").textContent = live ? "Live" : wait ? "Starting…" : "Offline";
+  $("meta").textContent = (live || wait)
+    ? fmt(st.uptime) + " on air · " + st.config.quality + " · " + st.config.source + (st.restarts ? " · restarts " + st.restarts : "")
+    : "Not streaming";
+  $("start").disabled = live || wait;
+  $("stop").disabled = !(live || wait);
+  $("restart").disabled = !(live || wait);
+  $("log").textContent = st.logs.length ? st.logs.join("\n") : "Nothing yet.";
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+async function poll(){
+  try { render(await api("status")); $("err").textContent = ""; }
+  catch(e){ if (e.status === 401) return lock(); $("err").textContent = e.message; }
+}
+
+function settings(){
+  return {
+    server: $("server").value.trim(), key: $("key").value.trim(),
+    source: $("sourceType").value, url: $("url").value.trim(),
+    quality: $("quality").value, bitrate: Number($("bitrate").value) || 0,
+    loop: $("loop").checked, mute: $("mute").checked, autoRestart: $("auto").checked
+  };
+}
+
+function persist(){
+  if ($("remember").checked) localStorage.setItem("ts", JSON.stringify({ server: $("server").value, key: $("key").value }));
+  else localStorage.removeItem("ts");
+}
+
+async function act(action, body){
+  $("err").textContent = "";
+  try { persist(); render(await api(action, body)); }
+  catch(e){ $("err").textContent = e.message; }
+}
+
+function unlock(){
+  $("gate").classList.add("hidden"); $("app").classList.remove("hidden");
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("ts") || "null"); } catch {}
+  if (saved){ $("server").value = saved.server; $("key").value = saved.key; $("remember").checked = true; }
+  poll(); clearInterval(timer); timer = setInterval(poll, 3000);
+}
+function lock(){
+  clearInterval(timer); sessionStorage.removeItem("pw"); pw = "";
+  $("app").classList.add("hidden"); $("gate").classList.remove("hidden");
+  $("gateErr").textContent = "Wrong password.";
+}
+
+$("enter").onclick = async () => {
+  pw = $("pw").value; $("gateErr").textContent = "";
+  try { await api("status"); sessionStorage.setItem("pw", pw); unlock(); }
+  catch(e){ $("gateErr").textContent = e.status === 401 ? "Wrong password." : e.message; }
+};
+$("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("enter").click(); });
+$("sourceType").onchange = () => $("urlWrap").classList.toggle("hidden", $("sourceType").value !== "url");
+$("start").onclick = () => act("start", settings());
+$("stop").onclick = () => act("stop");
+$("restart").onclick = () => act("restart", settings());
+$("remember").onchange = persist;
+
+if (pw) api("status").then(unlock).catch(() => { pw = ""; });
+</script>
+</body>
+</html>
